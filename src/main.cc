@@ -33,6 +33,8 @@ bool IsAlpha(char c) {
 
 bool IsDigit(char c) { return c >= '0' && c <= '9'; }
 
+bool IsAddop(char c) { return c == '+' or c == '-'; }
+
 char UpCase(char c) {
   if (c >= 'a' && c <= 'z')
     return c - 32;
@@ -66,33 +68,78 @@ void EmitLn(const std::string &s) {
 void Init() { GetChar(); }
 
 // expression
-void Term() { EmitLn("MOVE #" + std::string(1, GetNum()) + ",D0"); }
+void Expression();
+
+void Factor() {
+  if (Look == '(') {
+    Match('(');
+    Expression();
+    Match(')');
+  } else {
+    EmitLn("MOVE #" + std::string(1, GetNum()) + ",D0");
+  }
+}
+
+void Multiply() {
+  Match('*');
+  Factor();
+  EmitLn("MULS (SP)+,D0");
+}
+
+void Divide() {
+  Match('/');
+  Factor();
+  EmitLn("MOVE (SP)+,D1");
+  EmitLn("DIVS D1,D0");
+}
+
+void Term() {
+  Factor();
+  while (Look == '*' || Look == '/') {
+    EmitLn("MOVE D0, -(SP)");
+    switch (Look) {
+    case '*':
+      Multiply();
+      break;
+    case '/':
+      Divide();
+      break;
+    default:
+      Expected("Mulop");
+    }
+  }
+}
 
 void Add() {
   Match('+');
   Term();
-  EmitLn("ADD D1,D0");
+  EmitLn("ADD (SP)+,D0");
 }
 
 void Subtract() {
   Match('-');
   Term();
-  EmitLn("SUB D1,D0");
+  EmitLn("SUB (SP)+,D0");
   EmitLn("NEG D0");
 }
 
 void Expression() {
-  Term();
-  EmitLn("MOVE D0,D1");
-  switch (Look) {
-  case '+':
-    Add();
-    break;
-  case '-':
-    Subtract();
-    break;
-  default:
-    Expected("Addop");
+  if (IsAddop(Look))
+    EmitLn("CLR D0");
+  else
+    Term();
+  while (Look == '+' || Look == '-') {
+    EmitLn("MOVE D0,-(SP)");
+    switch (Look) {
+    case '+':
+      Add();
+      break;
+    case '-':
+      Subtract();
+      break;
+    default:
+      Expected("Addop");
+    }
   }
 }
 
