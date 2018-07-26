@@ -5,6 +5,7 @@ FILE *in_s = stdin;
 FILE *out_s = stdout;
 
 const char TAB = '\t';
+const char CR = '\n';
 char Look;
 
 void GetChar() { Look = std::getc(in_s); }
@@ -21,10 +22,11 @@ void Abort(const std::string &s) {
 void Expected(const std::string &s) { Abort(s + " Expected"); }
 
 void Match(char x) {
-  if (x == Look)
+  if (x == Look) {
     GetChar();
-  else
+  } else {
     Expected("\'" + std::string(1, x) + "\'");
+  }
 }
 
 bool IsAlpha(char c) {
@@ -36,23 +38,26 @@ bool IsDigit(char c) { return c >= '0' && c <= '9'; }
 bool IsAddop(char c) { return c == '+' or c == '-'; }
 
 char UpCase(char c) {
-  if (c >= 'a' && c <= 'z')
+  if (c >= 'a' && c <= 'z') {
     return c - 32;
-  else
+  } else {
     return c;
+  }
 }
 
 char GetName() {
-  if (!IsAlpha(Look))
+  if (!IsAlpha(Look)) {
     Expected("Name");
+  }
   char name = UpCase(Look);
   GetChar();
   return name;
 }
 
 char GetNum() {
-  if (!IsDigit(Look))
+  if (!IsDigit(Look)) {
     Expected("Integer");
+  }
   char num = Look;
   GetChar();
   return num;
@@ -70,11 +75,24 @@ void Init() { GetChar(); }
 // expression
 void Expression();
 
+void Ident() {
+  char Name = GetName();
+  if (Look == '(') {
+    Match('(');
+    Match(')');
+    EmitLn("BSR " + std::string(1, Name));
+  } else {
+    EmitLn("MOVE " + std::string(1, GetName()) + "(PC),D0");
+  }
+}
+
 void Factor() {
   if (Look == '(') {
     Match('(');
     Expression();
     Match(')');
+  } else if (IsAlpha(Look)) {
+    Ident();
   } else {
     EmitLn("MOVE #" + std::string(1, GetNum()) + ",D0");
   }
@@ -124,10 +142,11 @@ void Subtract() {
 }
 
 void Expression() {
-  if (IsAddop(Look))
+  if (IsAddop(Look)) {
     EmitLn("CLR D0");
-  else
+  } else {
     Term();
+  }
   while (Look == '+' || Look == '-') {
     EmitLn("MOVE D0,-(SP)");
     switch (Look) {
@@ -143,8 +162,19 @@ void Expression() {
   }
 }
 
+void Assignment() {
+  char Name = GetName();
+  Match('=');
+  Expression();
+  EmitLn("LEA " + std::string(1, Name) + "(PC),A0");
+  EmitLn("MOVE D0,(A0)");
+}
+
 int main() {
   Init();
-  Expression();
+  Assignment();
+  if (Look != CR) {
+    Expected("Newline");
+  }
   return 0;
 }
