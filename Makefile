@@ -1,12 +1,13 @@
 VPATH = include src
 OBJ = main.o
 INCLUDE = 'include'
+CXXFLAGS=
 
 toycc : $(OBJ)
-	g++ $^ -o $@
+	g++ $(CXXFLAGS) $^ -o $@
 
 main.o : main.cc
-	g++ -c $< -o $@
+	g++ $(CXXFLAGS) -c $< -o $@
 
 .PHONY : clean
 clean:

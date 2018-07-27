@@ -7,6 +7,7 @@ FILE *out_s = stdout;
 const char TAB = '\t';
 const char CR = '\n';
 char Look;
+int Lcount = 0;
 
 void GetChar() { Look = std::getc(in_s); }
 
@@ -19,13 +20,15 @@ void Abort(const std::string &s) {
   std::abort();
 }
 
+std::string char2str(char c) { return std::string(1, c); }
+
 void Expected(const std::string &s) { Abort(s + " Expected"); }
 
 void Match(char x) {
   if (x == Look) {
     GetChar();
   } else {
-    Expected("\'" + std::string(1, x) + "\'");
+    Expected("\'" + char2str(x) + "\'");
   }
 }
 
@@ -80,9 +83,9 @@ void Ident() {
   if (Look == '(') {
     Match('(');
     Match(')');
-    EmitLn("BSR " + std::string(1, Name));
+    EmitLn("BSR " + char2str(Name));
   } else {
-    EmitLn("MOVE " + std::string(1, GetName()) + "(PC),D0");
+    EmitLn("MOVE " + char2str(GetName()) + "(PC),D0");
   }
 }
 
@@ -94,7 +97,7 @@ void Factor() {
   } else if (IsAlpha(Look)) {
     Ident();
   } else {
-    EmitLn("MOVE #" + std::string(1, GetNum()) + ",D0");
+    EmitLn("MOVE #" + char2str(GetNum()) + ",D0");
   }
 }
 
@@ -166,15 +169,66 @@ void Assignment() {
   char Name = GetName();
   Match('=');
   Expression();
-  EmitLn("LEA " + std::string(1, Name) + "(PC),A0");
+  EmitLn("LEA " + char2str(Name) + "(PC),A0");
   EmitLn("MOVE D0,(A0)");
+}
+
+// control flow
+std::string NewLable() {
+  std::string s = "L" + std::to_string(Lcount);
+  Lcount++;
+  return s;
+}
+
+void PostLabel(std::string L) { fprintf(out_s, "%s:", L.c_str()); }
+
+void Other() {EmitLn(char2str(GetName())); }
+
+void Block();
+
+void Condition() { EmitLn("<condition>"); }
+
+void DoIf() {
+  Match('i');
+  std::string L1 = NewLable();
+  std::string L2 = L1;
+  Condition();
+  EmitLn("BEQ " + L1);
+  Block();
+  if (Look == 'l') {
+    Match('l');
+    L2 = NewLable();
+    EmitLn("BRA " + L2);
+    PostLabel(L1);
+    Block();
+  }
+  Match('e');
+  PostLabel(L2);
+}
+
+void Block() {
+  while (Look != 'e' && Look != 'l') {
+    switch (Look) {
+    case 'i':
+      DoIf();
+      break;
+    default:
+      Other();
+      break;
+    }
+  }
+}
+
+void DoProgram() {
+  Block();
+  if (Look != 'e') {
+    Expected("End");
+  }
+  EmitLn("END");
 }
 
 int main() {
   Init();
-  Assignment();
-  if (Look != CR) {
-    Expected("Newline");
-  }
+  DoProgram();
   return 0;
 }
