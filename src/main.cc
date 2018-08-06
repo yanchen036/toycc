@@ -7,7 +7,7 @@ FILE *out_s = stdout;
 const char TAB = '\t';
 const char CR = '\n';
 char Look;
-int Lcount = 0;
+int Lcount;
 
 void GetChar() { Look = std::getc(in_s); }
 
@@ -72,8 +72,6 @@ void EmitLn(const std::string &s) {
   Emit(s);
   fprintf(out_s, "\n");
 }
-
-void Init() { GetChar(); }
 
 // expression
 void Expression();
@@ -182,35 +180,146 @@ std::string NewLable() {
 
 void PostLabel(std::string L) { fprintf(out_s, "%s:", L.c_str()); }
 
-void Other() {EmitLn(char2str(GetName())); }
+void Other() { EmitLn(char2str(GetName())); }
 
-void Block();
+void Block(std::string L);
 
 void Condition() { EmitLn("<condition>"); }
 
-void DoIf() {
+void DoIf(std::string L) {
   Match('i');
   std::string L1 = NewLable();
   std::string L2 = L1;
   Condition();
   EmitLn("BEQ " + L1);
-  Block();
+  Block(L);
   if (Look == 'l') {
     Match('l');
     L2 = NewLable();
     EmitLn("BRA " + L2);
     PostLabel(L1);
-    Block();
+    Block(L);
   }
   Match('e');
   PostLabel(L2);
 }
 
-void Block() {
-  while (Look != 'e' && Look != 'l') {
+void DoWhile() {
+  std::string L1, L2;
+  Match('w');
+  L1 = NewLable();
+  L2 = NewLable();
+  PostLabel(L1);
+  Condition();
+  EmitLn("BEQ " + L2);
+  Block(L2);
+  Match('e');
+  EmitLn("BRA " + L1);
+  PostLabel(L2);
+}
+
+void DoLoop() {
+  std::string L1, L2;
+  Match('p');
+  L1 = NewLable();
+  L2 = NewLable();
+  PostLabel(L1);
+  Block(L2);
+  Match('e');
+  EmitLn("BRA " + L1);
+  PostLabel(L2);
+}
+
+void DoRepeat() {
+  std::string L;
+  Match('r');
+  L = NewLable();
+  PostLabel(L);
+  Block(L);
+  Match('u');
+  Condition();
+  EmitLn("BEQ " + L);
+}
+
+void ExpressionTMP() { EmitLn("<expr>"); }
+
+void DoFor() {
+  std::string L1, L2;
+  char Name;
+  Match('f');
+  L1 = NewLable();
+  L2 = NewLable();
+  Name = GetName();
+  Match('=');
+  ExpressionTMP();
+  EmitLn("SUBQ #1,D0");
+  EmitLn("LEA " + char2str(Name) + "(PC),A0");
+  EmitLn("MOVE D0,(A0)");
+  ExpressionTMP();
+  EmitLn("MOVE D0,-(SP)");
+  PostLabel(L1);
+  EmitLn("LEA " + char2str(Name) + "(PC),A0");
+  EmitLn("MOVE (A0),D0");
+  EmitLn("ADDQ #1,D0");
+  EmitLn("MOVE D0,(A0)");
+  EmitLn("CMP (SP),D0");
+  EmitLn("BGT " + L2);
+  Block(L2);
+  Match('e');
+  EmitLn("BRA " + L1);
+  PostLabel(L2);
+  EmitLn("ADDQ #2,SP");
+}
+
+void DoDo() {
+  std::string L1, L2;
+  Match('d');
+  L1 = NewLable();
+  L2 = NewLable();
+  ExpressionTMP();
+  EmitLn("SUBQ #1,D0");
+  PostLabel(L1);
+  EmitLn("MOVE D0,-(SP)");
+  Block(L2);
+  EmitLn("MOVE (SP)+,D0");
+  EmitLn("DBRA D0," + L1);
+  EmitLn("SUBQ #2,SP");
+  PostLabel(L2);
+  EmitLn("ADDQ #2,SP");
+}
+
+void DoBreak(std::string L) {
+  Match('b');
+  if (L != "") {
+    EmitLn("BRA " + L);
+  } else {
+    Abort("No loop to break from");
+  }
+}
+
+void Block(std::string L) {
+  while (Look != 'e' && Look != 'l' && Look != 'u' && Look != '=') {
     switch (Look) {
     case 'i':
-      DoIf();
+      DoIf(L);
+      break;
+    case 'w':
+      DoWhile();
+      break;
+    case 'p':
+      DoLoop();
+      break;
+    case 'r':
+      DoRepeat();
+      break;
+    case 'f':
+      DoFor();
+      break;
+    case 'd':
+      DoDo();
+      break;
+    case 'b':
+      DoBreak(L);
       break;
     default:
       Other();
@@ -220,11 +329,16 @@ void Block() {
 }
 
 void DoProgram() {
-  Block();
+  Block("");
   if (Look != 'e') {
     Expected("End");
   }
   EmitLn("END");
+}
+
+void Init() {
+  Lcount = 0;
+  GetChar();
 }
 
 int main() {
